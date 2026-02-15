@@ -439,8 +439,23 @@
             updateTotalIncome();
         }
 
-        // Initial Page Load
+        // --- ⚠️ چارەسەری کێشەی مۆبایل و ئاگادارکەرەوە ---
+        function isLocalStorageAvailable() {
+            var test = 'test';
+            try {
+                localStorage.setItem(test, test);
+                localStorage.removeItem(test);
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
         window.onload = () => {
+            if (!isLocalStorageAvailable()) {
+                alert("ئاگاداری: وێبگەڕەکەت پشتگیری لە خەزنکردنی ناوخۆیی (localStorage) ناکات یان لە دۆخی تایبەت (Private Mode)ـدایە. هیچ زانیارییەک پاش داخستنی پەڕەکە نامێنێتەوە.");
+            }
+            
             switchMode('PC');
             updateIncomeDisplay();
             loadReportList();
