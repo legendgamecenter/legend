@@ -31,11 +31,8 @@
         .start-btn, .resume-btn { background-color: #4CAF50; }
         .pause-btn { background-color: #f44336; }
         .reset-btn { background-color: #ff9800; }
-
-        /* --- 🎨 گۆڕانکاریی ڕەنگ لێرەدایە --- */
-        #pcBtn { background-color: #f44336; } /* Red */
-        #psBtn { background-color: #2196F3; } /* Blue */
-
+        #pcBtn { background-color: #f44336; }
+        #psBtn { background-color: #2196F3; }
     </style>
 </head>
 <body>
@@ -91,6 +88,7 @@
         const playersDiv = document.getElementById('players');
         const foodMenuKey = 'foodMenu';
         
+        // --- Functions for Food Menu Management ---
         function loadFoodMenu() { return JSON.parse(localStorage.getItem(foodMenuKey)) || []; }
         function saveFoodMenu(menu) {
             localStorage.setItem(foodMenuKey, JSON.stringify(menu));
@@ -141,6 +139,8 @@
                 }
             }
         }
+        
+        // --- Functions for Player Food Management ---
         function addFoodToPlayer(i) {
             const key = `${mode}${i}`;
             const select = document.getElementById(`foodSelect${i}`);
@@ -152,7 +152,7 @@
             if (!stored.foodItems) stored.foodItems = [];
             stored.foodItems.push({ name: foodItem.name, price: foodItem.price });
             localStorage.setItem(key, JSON.stringify(stored));
-            const elapsed = stored.elapsedTime + (stored.isRunning ? (Date.now() - (stored.startTime || Date.now())) : 0);
+            const elapsed = (stored.elapsedTime || 0) + (stored.isRunning ? (Date.now() - stored.startTime) : 0);
             updateDisplay(i, elapsed);
             if (!stored.isRunning) toggleButtons(i, 'paused');
             updateCounts();
@@ -169,8 +169,27 @@
             if (!stored.isRunning && !(stored.elapsedTime > 0) && stored.foodItems.length === 0) toggleButtons(i, 'reset');
             updateCounts();
         }
+        
+        // --- General Helper Functions ---
         function getTodayKey() { const d = new Date(); return `daily-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
         function getMonthKey() { const d = new Date(); return `monthly-${d.getFullYear()}-${d.getMonth() + 1}`; }
+        function format(ms) {
+            if (ms < 0) ms = 0;
+            const totalSeconds = Math.floor(ms / 1000);
+            const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const s = String(totalSeconds % 60).padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+        function addOption(key) {
+            const list = document.getElementById("reportList");
+            const option = document.createElement("option");
+            option.value = key;
+            option.textContent = key;
+            list.appendChild(option);
+        }
+
+        // --- Core UI and Data Update Functions ---
         function updateIncomeDisplay() {
             const daily = JSON.parse(localStorage.getItem(getTodayKey())) || 0;
             const monthly = JSON.parse(localStorage.getItem(getMonthKey())) || 0;
@@ -192,7 +211,169 @@
             loadReportList();
             alert("پارەکە تۆمارکرا ✅");
         }
+        function generateReport() {
+            const key = document.getElementById("reportList").value;
+            if (!key) return alert("هیچ ڕاپۆرتێک نییە");
+            const amount = JSON.parse(localStorage.getItem(key)) || 0;
+            const content = `<html><head><title>Report</title></head><body style="font-family:Arial;text-align:center;"><h2>Legend Game Center</h2><h3>${key}</h3><h1>${amount} دینار</h1></body></html>`;
+            const win = window.open("", "", "width=600,height=600");
+            win.document.write(content);
+            win.document.close();
+            win.print();
+        }
+        document.getElementById("reportType").addEventListener("change", loadReportList);
+        function updateDisplay(i, elapsed) {
+            const key = `${mode}${i}`;
+            const stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [] };
+            const gameCost = Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
+            let foodCost = 0;
+            const foodListDiv = document.getElementById(`foodList${i}`);
+            foodListDiv.innerHTML = '';
+            if (stored.foodItems && stored.foodItems.length > 0) {
+                const list = document.createElement('ul');
+                list.style.cssText = "padding-right: 0; margin: 5px 0; text-align: right; list-style-type: none;";
+                stored.foodItems.forEach((item, index) => {
+                    foodCost += item.price;
+                    const listItem = document.createElement('li');
+                    listItem.style.cssText = "display:flex; justify-content:space-between; align-items:center;";
+                    listItem.innerHTML = `<span>• ${item.name}: ${item.price} دینار</span><button class="delete-food-btn" onclick="deleteFoodFromPlayer(${i}, ${index})">❌</button>`;
+                    list.appendChild(listItem);
+                });
+                foodListDiv.appendChild(list);
+            }
+            const totalCost = gameCost + foodCost;
+            document.getElementById(`time${i}`).textContent = format(elapsed);
+            document.getElementById(`cost${i}`).textContent = `💰 ${totalCost} دینار`;
+            updateTotalIncome();
+        }
+        function updateTotalIncome() {
+            let total = 0;
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
+                if (!data) continue;
+                let elapsed = data.elapsedTime || 0;
+                if (data.isRunning) elapsed += Date.now() - data.startTime;
+                total += Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
+                if (data.foodItems) data.foodItems.forEach(item => total += item.price);
+            }
+            document.getElementById('totalIncome').textContent = total;
+        }
+        function toggleButtons(i, state) {
+            const box = document.getElementById(`playerBox${i}`);
+            const start = document.getElementById(`startBtn${i}`);
+            const pause = document.getElementById(`pauseBtn${i}`);
+            const resume = document.getElementById(`resumeBtn${i}`);
+            const reset = document.getElementById(`resetBtn${i}`);
+            start.style.display = (state === 'reset') ? 'inline-block' : 'none';
+            pause.style.display = (state === 'running') ? 'inline-block' : 'none';
+            resume.style.display = (state === 'paused') ? 'inline-block' : 'none';
+            reset.style.display = (state !== 'reset') ? 'inline-block' : 'none';
+            box.classList.remove('started', 'paused');
+            if (state === 'running') box.classList.add('started');
+            if (state === 'paused') box.classList.add('paused');
+        }
+        function updateCounts() {
+            let started = 0;
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
+                if (data && (data.isRunning || (data.elapsedTime && data.elapsedTime > 0) || (data.foodItems && data.foodItems.length > 0))) {
+                     started++;
+                }
+            }
+            document.getElementById('countStarted').textContent = started;
+            document.getElementById('countNotStarted').textContent = max - started;
+        }
+
+        // --- Core Timer Logic ---
+        function runInterval(i) {
+            const key = `${mode}${i}`;
+            if (intervals[key]) clearInterval(intervals[key]);
+            intervals[key] = setInterval(() => {
+                const data = JSON.parse(localStorage.getItem(key));
+                if (!data || !data.isRunning) { clearInterval(intervals[key]); return; }
+                const totalElapsed = (data.elapsedTime || 0) + (Date.now() - data.startTime);
+                updateDisplay(i, totalElapsed);
+            }, 1000);
+        }
+        function startTimer(i) {
+            const key = `${mode}${i}`;
+            const data = { startTime: Date.now(), elapsedTime: 0, isRunning: true, foodItems: [] };
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleButtons(i, 'running');
+            runInterval(i);
+            updateCounts();
+        }
+        function pauseTimer(i) {
+            const key = `${mode}${i}`;
+            let data = JSON.parse(localStorage.getItem(key));
+            if (!data || !data.isRunning) return;
+            data.elapsedTime += (Date.now() - data.startTime);
+            data.isRunning = false;
+            localStorage.setItem(key, JSON.stringify(data));
+            if (intervals[key]) clearInterval(intervals[key]);
+            toggleButtons(i, 'paused');
+            updateCounts();
+        }
+        function resumeTimer(i) {
+            const key = `${mode}${i}`;
+            let data = JSON.parse(localStorage.getItem(key));
+            if (!data || data.isRunning) return;
+            data.startTime = Date.now();
+            data.isRunning = true;
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleButtons(i, 'running');
+            runInterval(i);
+            updateCounts();
+        }
+        function resetTimer(i, force = false) {
+            const key = `${mode}${i}`;
+            const stored = JSON.parse(localStorage.getItem(key));
+            if (stored && !force) {
+                let msg = `(${mode} ${i})`;
+                if (stored.foodItems && stored.foodItems.length > 0) {
+                    if (!confirm(`ئەم یاریزانە ${msg} داواکاری خواردنی هەیە، دڵنیایت؟`)) return;
+                } else if (stored.isRunning || stored.elapsedTime > 0) {
+                    if (!confirm(`دڵنیایت لە سڕینەوەی کاتی یاریزانی ${msg}؟`)) return;
+                }
+            }
+            if (intervals[key]) clearInterval(intervals[key]);
+            localStorage.removeItem(key);
+            updateDisplay(i, 0);
+            toggleButtons(i, 'reset');
+            updateCounts();
+        }
         
+        // --- Control All Buttons Logic ---
+        function startAll() {
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const key = `${mode}${i}`;
+                const data = JSON.parse(localStorage.getItem(key));
+                if (!data || Object.keys(data).length === 0 || (!data.isRunning && !data.elapsedTime)) {
+                    startTimer(i);
+                } else if (data && !data.isRunning) {
+                    resumeTimer(i);
+                }
+            }
+        }
+        function pauseAll() {
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                pauseTimer(i);
+            }
+        }
+        function resetAll() {
+            if (confirm("دڵنیایت لە سڕینەوەی هەموو کات و داواکارییەکان؟")) {
+                const max = mode === 'PC' ? numPC : numPS;
+                for (let i = 1; i <= max; i++) {
+                    resetTimer(i, true);
+                }
+            }
+        }
+        
+        // --- Page Initialization ---
         function loadPlayer(i) {
             const key = `${mode}${i}`;
             const div = document.createElement('div');
@@ -233,13 +414,14 @@
                     updateDisplay(i, stored.elapsedTime || 0);
                     if ((stored.elapsedTime || 0) > 0 || (stored.foodItems && stored.foodItems.length > 0)) {
                         toggleButtons(i, 'paused');
+                    } else {
+                        toggleButtons(i, 'reset');
                     }
                 }
             } else {
                 toggleButtons(i, 'reset');
             }
         }
-        
         function renderPlayers() {
             playersDiv.innerHTML = '';
             const max = mode === 'PC' ? numPC : numPS;
@@ -247,34 +429,6 @@
             populateAllPlayerDropdowns();
             updateCounts();
         }
-        function loadReportList() {
-            const type = document.getElementById("reportType").value;
-            const list = document.getElementById("reportList");
-            list.innerHTML = "";
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (type === "daily" && key.startsWith("daily-")) { addOption(key); }
-                if (type === "monthly" && key.startsWith("monthly-")) { addOption(key); }
-            }
-        }
-        function addOption(key) {
-            const list = document.getElementById("reportList");
-            const option = document.createElement("option");
-            option.value = key;
-            option.textContent = key;
-            list.appendChild(option);
-        }
-        function generateReport() {
-            const key = document.getElementById("reportList").value;
-            if (!key) return alert("هیچ ڕاپۆرتێک نییە");
-            const amount = JSON.parse(localStorage.getItem(key)) || 0;
-            const content = `<html><head><title>Report</title></head><body style="font-family:Arial;text-align:center;"><h2>Legend Game Center</h2><h3>${key}</h3><h1>${amount} دینار</h1></body></html>`;
-            const win = window.open("", "", "width=600,height=600");
-            win.document.write(content);
-            win.document.close();
-            win.print();
-        }
-        document.getElementById("reportType").addEventListener("change", loadReportList);
         function switchMode(m) {
             Object.values(intervals).forEach(clearInterval);
             intervals = {};
@@ -284,174 +438,8 @@
             renderPlayers();
             updateTotalIncome();
         }
-        function format(ms) {
-            if (ms < 0) ms = 0;
-            const totalSeconds = Math.floor(ms / 1000);
-            const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-            const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-            const s = String(totalSeconds % 60).padStart(2, '0');
-            return `${h}:${m}:${s}`;
-        }
-        function updateDisplay(i, elapsed) {
-            const key = `${mode}${i}`;
-            const stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [] };
-            const gameCost = Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
-            let foodCost = 0;
-            const foodListDiv = document.getElementById(`foodList${i}`);
-            foodListDiv.innerHTML = '';
-            if (stored.foodItems && stored.foodItems.length > 0) {
-                const list = document.createElement('ul');
-                list.style.cssText = "padding-right: 0; margin: 5px 0; text-align: right; list-style-type: none;";
-                stored.foodItems.forEach((item, index) => {
-                    foodCost += item.price;
-                    const listItem = document.createElement('li');
-                    listItem.style.cssText = "display:flex; justify-content:space-between; align-items:center;";
-                    listItem.innerHTML = `<span>• ${item.name}: ${item.price} دینار</span><button class="delete-food-btn" onclick="deleteFoodFromPlayer(${i}, ${index})">❌</button>`;
-                    list.appendChild(listItem);
-                });
-                foodListDiv.appendChild(list);
-            }
-            const totalCost = gameCost + foodCost;
-            document.getElementById(`time${i}`).textContent = format(elapsed);
-            document.getElementById(`cost${i}`).textContent = `💰 ${totalCost} دینار`;
-            updateTotalIncome();
-        }
-        function updateTotalIncome() {
-            let total = 0;
-            const max = mode === 'PC' ? numPC : numPS;
-            for (let i = 1; i <= max; i++) {
-                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
-                if (!data) continue;
-                let elapsed = data.elapsedTime || 0;
-                if (data.isRunning) elapsed += Date.now() - data.startTime;
-                total += Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
-                if (data.foodItems) data.foodItems.forEach(item => total += item.price);
-            }
-            document.getElementById('totalIncome').textContent = total;
-        }
 
-        function runInterval(i) {
-            const key = `${mode}${i}`;
-            if (intervals[key]) clearInterval(intervals[key]);
-            intervals[key] = setInterval(() => {
-                const data = JSON.parse(localStorage.getItem(key));
-                if (!data || !data.isRunning) { clearInterval(intervals[key]); return; }
-                const totalElapsed = (data.elapsedTime || 0) + (Date.now() - data.startTime);
-                updateDisplay(i, totalElapsed);
-            }, 1000);
-        }
-
-        function toggleButtons(i, state) {
-            const box = document.getElementById(`playerBox${i}`);
-            const start = document.getElementById(`startBtn${i}`);
-            const pause = document.getElementById(`pauseBtn${i}`);
-            const resume = document.getElementById(`resumeBtn${i}`);
-            const reset = document.getElementById(`resetBtn${i}`);
-            start.style.display = (state === 'reset') ? 'inline-block' : 'none';
-            pause.style.display = (state === 'running') ? 'inline-block' : 'none';
-            resume.style.display = (state === 'paused') ? 'inline-block' : 'none';
-            reset.style.display = (state !== 'reset') ? 'inline-block' : 'none';
-            box.classList.remove('started', 'paused');
-            if (state === 'running') box.classList.add('started');
-            if (state === 'paused') box.classList.add('paused');
-        }
-
-        function updateCounts() {
-            let started = 0;
-            const max = mode === 'PC' ? numPC : numPS;
-            for (let i = 1; i <= max; i++) {
-                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
-                if (data && (data.isRunning || (data.elapsedTime && data.elapsedTime > 0) || (data.foodItems && data.foodItems.length > 0))) {
-                     started++;
-                }
-            }
-            document.getElementById('countStarted').textContent = started;
-            document.getElementById('countNotStarted').textContent = max - started;
-        }
-        
-        function startTimer(i) {
-            const key = `${mode}${i}`;
-            let stored = JSON.parse(localStorage.getItem(key)) || {};
-            if (stored.isRunning) return;
-            const data = { startTime: Date.now(), elapsedTime: 0, isRunning: true, foodItems: stored.foodItems || [] };
-            localStorage.setItem(key, JSON.stringify(data));
-            toggleButtons(i, 'running');
-            runInterval(i);
-            updateCounts();
-        }
-
-        function pauseTimer(i) {
-            const key = `${mode}${i}`;
-            let data = JSON.parse(localStorage.getItem(key));
-            if (!data || !data.isRunning) return;
-            data.elapsedTime += (Date.now() - data.startTime);
-            data.isRunning = false;
-            localStorage.setItem(key, JSON.stringify(data));
-            if (intervals[key]) clearInterval(intervals[key]);
-            toggleButtons(i, 'paused');
-            updateCounts();
-        }
-
-        function resumeTimer(i) {
-            const key = `${mode}${i}`;
-            let data = JSON.parse(localStorage.getItem(key));
-            if (!data || data.isRunning) return;
-            data.startTime = Date.now();
-            data.isRunning = true;
-            localStorage.setItem(key, JSON.stringify(data));
-            toggleButtons(i, 'running');
-            runInterval(i);
-            updateCounts();
-        }
-        
-        function resetTimer(i, force = false) {
-            const key = `${mode}${i}`;
-            const stored = JSON.parse(localStorage.getItem(key));
-            if (stored && !force) {
-                let msg = `(${mode} ${i})`;
-                if(stored.foodItems && stored.foodItems.length > 0) {
-                    if (!confirm(`ئەم یاریزانە ${msg} داواکاری خواردنی هەیە، دڵنیایت؟`)) return;
-                } else if (stored.isRunning || stored.elapsedTime > 0) {
-                     if (!confirm(`دڵنیایت لە سڕینەوەی کاتی یاریزانی ${msg}؟`)) return;
-                }
-            }
-            if (intervals[key]) clearInterval(intervals[key]);
-            localStorage.removeItem(key);
-            updateDisplay(i, 0);
-            toggleButtons(i, 'reset');
-            updateCounts();
-        }
-
-        function startAll() {
-            const max = mode === 'PC' ? numPC : numPS;
-            for (let i = 1; i <= max; i++) {
-                const key = `${mode}${i}`;
-                const data = JSON.parse(localStorage.getItem(key));
-                if (!data || Object.keys(data).length === 0 || (!data.isRunning && !data.elapsedTime)) {
-                    startTimer(i);
-                } else if (data && !data.isRunning) {
-                    resumeTimer(i);
-                }
-            }
-        }
-        
-        function pauseAll() {
-            const max = mode === 'PC' ? numPC : numPS;
-            for (let i = 1; i <= max; i++) {
-                pauseTimer(i);
-            }
-        }
-
-        function resetAll() {
-            if (confirm("دڵنیایت لە سڕینەوەی هەموو کات و داواکارییەکان؟")) {
-                const max = mode === 'PC' ? numPC : numPS;
-                for (let i = 1; i <= max; i++) {
-                    resetTimer(i, true);
-                }
-            }
-        }
-
-        // Initial Load
+        // Initial Page Load
         switchMode('PC');
         updateIncomeDisplay();
         loadReportList();
