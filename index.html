@@ -440,10 +440,12 @@
         }
 
         // Initial Page Load
-        switchMode('PC');
-        updateIncomeDisplay();
-        loadReportList();
-        renderFoodMenu();
+        window.onload = () => {
+            switchMode('PC');
+            updateIncomeDisplay();
+            loadReportList();
+            renderFoodMenu();
+        };
     </script>
 </body>
 </html>
