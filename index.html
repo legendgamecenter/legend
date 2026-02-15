@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ku">
+<head>
+    <meta charset="UTF-8">
+    <title>Legend Game Center</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #111; color: #eee; padding: 20px; }
+        .main-title { text-align: center; font-size: 48px; font-weight: bold; color: #c63636; text-shadow: 0 0 10px #000, 0 0 20px #250000; margin-bottom: 10px; }
+        .switch-btn { border: none; border-radius: 8px; padding: 8px 18px; margin: 0 5px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .switch-btn.active { opacity: 1; } .switch-btn.inactive { opacity: 0.5; }
+        #players { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .player { background: #032648; border-radius: 12px; padding: 15px; border: 6px solid rgb(8, 81, 146); text-align: center; transition: 0.3s; }
+        .player.started { border: 6px solid rgb(6, 96, 6); background-color: #002005; }
+        .player.paused { border: 6px solid rgb(99, 8, 8); background-color: rgb(44, 2, 2); }
+        .player h4 { margin: 0 0 4px 0; font-size: 1.8em; color: #408df7; }
+        .player.started h4 { color: #0fa514; }
+        .player.paused h4 { color: #a72929; }
+        .time { font-size: 24px; margin: 8px 0; }
+        .cost { font-size: 20px; color: #ffd700; margin-bottom: 10px; }
+        button { border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; color: #fff; font-weight: bold; cursor: pointer; margin: 4px; transition: 0.2s; }
+        table { width: 300px; margin: 20px auto; border-collapse: collapse; color: #eee; }
+        table, th, td { border: 1px solid #555; }
+        th, td { padding: 8px 12px; text-align: center; }
+        th { background-color: #444; }
+        input, select { border-radius: 6px; border: none; padding: 6px; margin: 5px; background: #333; color: #fff; }
+        .food-manager { background-color: #1a1a1a; padding: 15px; border-radius: 10px; margin: 20px auto; max-width: 500px; text-align: center; }
+        .food-manager h3 { margin-top: 0; color: #00bcd4; }
+        #foodMenuList li { display: flex; justify-content: space-between; align-items: center; background-color: #2a2a2a; margin-bottom: 5px; padding: 8px; border-radius: 5px; }
+        #foodMenuList button, .delete-food-btn { background-color: #e91e63; padding: 3px 8px; font-size: 12px; }
+        .delete-food-btn { background: none; color: #ff5252; }
+        .start-btn, .resume-btn { background-color: #4CAF50; }
+        .pause-btn { background-color: #f44336; }
+        .reset-btn { background-color: #ff9800; }
+
+        /* --- 🎨 گۆڕانکاریی ڕەنگ لێرەدایە --- */
+        #pcBtn { background-color: #f44336; } /* Red */
+        #psBtn { background-color: #2196F3; } /* Blue */
+
+    </style>
+</head>
+<body>
+
+    <h2 class="main-title">Legend Game Center</h2>
+    
+    <div style="text-align:center; margin-bottom:20px;">
+        <button id="pcBtn" class="switch-btn active" onclick="switchMode('PC')">PC</button>
+        <button id="psBtn" class="switch-btn inactive" onclick="switchMode('PS')">PlayStation</button>
+    </div>
+    <div style="text-align:center;margin:20px;">
+        <button onclick="startAll()" style="background:#4CAF50;">▶ Start All</button>
+        <button onclick="pauseAll()" style="background:#f44336;">⏸ Pause All</button>
+        <button onclick="resetAll()" style="background:#ff9800;">🔄 Reset All</button>
+    </div>
+
+    <div id="players"></div>
+
+    <hr style="border-color: #444; margin: 40px 0;">
+
+    <h2 style="text-align:center;color:#ffd700;">💰 کۆی گشتی قازانج: <span id="totalIncome">0</span> دینار</h2>
+    <h3 style="text-align:center;color:#4CAF50;">📅 قازانجی ئەمڕۆ: <span id="dailyIncome">0</span> دینار</h3>
+    <h3 style="text-align:center;color:#00bcd4;">📆 قازانجی ئەم مانگە: <span id="monthlyIncome">0</span> دینار</h3>
+
+    <div style="text-align:center;margin-top:30px;">
+        <h3>📊 بینینی ڕاپۆرت</h3>
+        <select id="reportType"><option value="daily">ڕۆژانە</option><option value="monthly">مانگانە</option></select>
+        <select id="reportList"></select>
+        <button onclick="generateReport()" style="background:#9c27b0;">دروستکردنی PDF</button>
+    </div>
+
+    <table>
+        <thead><tr><th style="color:#4CAF50;">Started</th><th style="color:#f44336;">Not Started</th></tr></thead>
+        <tbody><tr><td id="countStarted">0</td><td id="countNotStarted">0</td></tr></tbody>
+    </table>
+
+    <hr style="border-color: #444; margin: 40px 0;">
+    <div class="food-manager">
+        <h3>📋 بەڕێوەبردنی لیستی خواردنەکان</h3>
+        <div>
+            <input type="text" id="newFoodName" placeholder="ناوی خواردن">
+            <input type="number" id="newFoodPrice" placeholder="نرخ">
+            <button id="addFoodItemBtn" style="background:#4CAF50;">زیادکردنی بۆ لیست</button>
+        </div>
+        <ul id="foodMenuList" style="list-style-type:none; padding:0; margin-top:15px;"></ul>
+    </div>
+
+    <script>
+        let mode = 'PC';
+        const numPC = 20, numPS = 14;
+        const pricePerHour = { 'PC': 3000, 'PS': 4500 };
+        let intervals = {};
+        const playersDiv = document.getElementById('players');
+        const foodMenuKey = 'foodMenu';
+        
+        function loadFoodMenu() { return JSON.parse(localStorage.getItem(foodMenuKey)) || []; }
+        function saveFoodMenu(menu) {
+            localStorage.setItem(foodMenuKey, JSON.stringify(menu));
+            renderFoodMenu();
+            populateAllPlayerDropdowns();
+        }
+        function renderFoodMenu() {
+            const menu = loadFoodMenu();
+            const menuList = document.getElementById('foodMenuList');
+            menuList.innerHTML = '';
+            menu.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${item.name} - ${item.price} دینار</span><button onclick="deleteFoodItem(${index})">سڕینەوە</button>`;
+                menuList.appendChild(li);
+            });
+        }
+        function deleteFoodItem(index) {
+            if (!confirm("دڵنیایت لە سڕینەوەی ئەم خواردنە لە لیستەکە؟")) return;
+            const menu = loadFoodMenu();
+            menu.splice(index, 1);
+            saveFoodMenu(menu);
+        }
+        document.getElementById('addFoodItemBtn').addEventListener('click', () => {
+            const nameInput = document.getElementById('newFoodName');
+            const priceInput = document.getElementById('newFoodPrice');
+            const name = nameInput.value.trim();
+            const price = parseInt(priceInput.value);
+            if (name === '' || isNaN(price) || price <= 0) { alert("تکایە ناو و نرخێکی دروست بنووسە."); return; }
+            const menu = loadFoodMenu();
+            menu.push({ name, price });
+            saveFoodMenu(menu);
+            nameInput.value = '';
+            priceInput.value = '';
+        });
+        function populateAllPlayerDropdowns() {
+            const menu = loadFoodMenu();
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const select = document.getElementById(`foodSelect${i}`);
+                if (select) {
+                    select.innerHTML = '<option value="">خواردن هەڵبژێرە...</option>';
+                    menu.forEach((item, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = `${item.name} (${item.price})`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        }
+        function addFoodToPlayer(i) {
+            const key = `${mode}${i}`;
+            const select = document.getElementById(`foodSelect${i}`);
+            const foodIndex = select.value;
+            if (foodIndex === "") { alert("تکایە خواردنێک هەڵبژێرە."); return; }
+            const menu = loadFoodMenu();
+            const foodItem = menu[parseInt(foodIndex)];
+            let stored = JSON.parse(localStorage.getItem(key)) || { elapsedTime: 0, startTime: 0, isRunning: false, foodItems: [] };
+            if (!stored.foodItems) stored.foodItems = [];
+            stored.foodItems.push({ name: foodItem.name, price: foodItem.price });
+            localStorage.setItem(key, JSON.stringify(stored));
+            const elapsed = stored.elapsedTime + (stored.isRunning ? (Date.now() - (stored.startTime || Date.now())) : 0);
+            updateDisplay(i, elapsed);
+            if (!stored.isRunning) toggleButtons(i, 'paused');
+            updateCounts();
+        }
+        function deleteFoodFromPlayer(i, foodIndex) {
+            const key = `${mode}${i}`;
+            let stored = JSON.parse(localStorage.getItem(key));
+            if (!stored || !stored.foodItems || stored.foodItems.length <= foodIndex) return;
+            stored.foodItems.splice(foodIndex, 1);
+            localStorage.setItem(key, JSON.stringify(stored));
+            let elapsed = stored.elapsedTime || 0;
+            if (stored.isRunning) elapsed += (Date.now() - stored.startTime);
+            updateDisplay(i, elapsed);
+            if (!stored.isRunning && !(stored.elapsedTime > 0) && stored.foodItems.length === 0) toggleButtons(i, 'reset');
+            updateCounts();
+        }
+        function getTodayKey() { const d = new Date(); return `daily-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+        function getMonthKey() { const d = new Date(); return `monthly-${d.getFullYear()}-${d.getMonth() + 1}`; }
+        function updateIncomeDisplay() {
+            const daily = JSON.parse(localStorage.getItem(getTodayKey())) || 0;
+            const monthly = JSON.parse(localStorage.getItem(getMonthKey())) || 0;
+            document.getElementById('dailyIncome').textContent = daily;
+            document.getElementById('monthlyIncome').textContent = monthly;
+        }
+        function savePayment(i) {
+            const paidInput = document.getElementById(`paid${i}`);
+            const paidAmount = parseInt(paidInput.value) || 0;
+            if (paidAmount <= 0) return;
+            let daily = JSON.parse(localStorage.getItem(getTodayKey())) || 0;
+            let monthly = JSON.parse(localStorage.getItem(getMonthKey())) || 0;
+            daily += paidAmount;
+            monthly += paidAmount;
+            localStorage.setItem(getTodayKey(), JSON.stringify(daily));
+            localStorage.setItem(getMonthKey(), JSON.stringify(monthly));
+            paidInput.value = '';
+            updateIncomeDisplay();
+            loadReportList();
+            alert("پارەکە تۆمارکرا ✅");
+        }
+        
+        function loadPlayer(i) {
+            const key = `${mode}${i}`;
+            const div = document.createElement('div');
+            div.className = 'player';
+            div.id = `playerBox${i}`;
+            div.innerHTML = `
+                <h4>${mode} ${i}</h4>
+                <div class="time" id="time${i}">00:00:00</div>
+                <div class="cost" id="cost${i}">💰 0 دینار</div>
+                <div id="foodList${i}" style="text-align:right; font-size:13px; margin-bottom:8px; color: #cfcfcf;"></div>
+                <div style="margin-bottom:10px;">
+                    <select id="foodSelect${i}" style="width: 55%; box-sizing: border-box;"></select>
+                    <button onclick="addFoodToPlayer(${i})" style="background:#00bcd4; width: 35%; box-sizing: border-box; vertical-align: top;">زیادکردن</button>
+                </div>
+                <hr style="border:0; border-top: 1px solid #444; margin: 10px 0;">
+                <input type="number" id="paid${i}" placeholder="پارەی وەرگیراو">
+                <button onclick="savePayment(${i})" style="background:#2196F3;">تۆمارکردن</button><br>
+                <button id="startBtn${i}" class="start-btn">Start</button>
+                <button id="pauseBtn${i}" class="pause-btn" style="display:none;">Pause</button>
+                <button id="resumeBtn${i}" class="resume-btn" style="display:none;">Resume</button>
+                <button id="resetBtn${i}" class="reset-btn" style="display:none;">Reset</button>
+            `;
+            playersDiv.appendChild(div);
+            
+            document.getElementById(`startBtn${i}`).onclick = () => startTimer(i);
+            document.getElementById(`pauseBtn${i}`).onclick = () => pauseTimer(i);
+            document.getElementById(`resumeBtn${i}`).onclick = () => resumeTimer(i);
+            document.getElementById(`resetBtn${i}`).onclick = () => resetTimer(i, false);
+            
+            const stored = JSON.parse(localStorage.getItem(key));
+            if (stored) {
+                if (stored.isRunning) {
+                    const currentElapsed = (stored.elapsedTime || 0) + (Date.now() - stored.startTime);
+                    updateDisplay(i, currentElapsed);
+                    toggleButtons(i, 'running');
+                    runInterval(i);
+                } else {
+                    updateDisplay(i, stored.elapsedTime || 0);
+                    if ((stored.elapsedTime || 0) > 0 || (stored.foodItems && stored.foodItems.length > 0)) {
+                        toggleButtons(i, 'paused');
+                    }
+                }
+            } else {
+                toggleButtons(i, 'reset');
+            }
+        }
+        
+        function renderPlayers() {
+            playersDiv.innerHTML = '';
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) loadPlayer(i);
+            populateAllPlayerDropdowns();
+            updateCounts();
+        }
+        function loadReportList() {
+            const type = document.getElementById("reportType").value;
+            const list = document.getElementById("reportList");
+            list.innerHTML = "";
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (type === "daily" && key.startsWith("daily-")) { addOption(key); }
+                if (type === "monthly" && key.startsWith("monthly-")) { addOption(key); }
+            }
+        }
+        function addOption(key) {
+            const list = document.getElementById("reportList");
+            const option = document.createElement("option");
+            option.value = key;
+            option.textContent = key;
+            list.appendChild(option);
+        }
+        function generateReport() {
+            const key = document.getElementById("reportList").value;
+            if (!key) return alert("هیچ ڕاپۆرتێک نییە");
+            const amount = JSON.parse(localStorage.getItem(key)) || 0;
+            const content = `<html><head><title>Report</title></head><body style="font-family:Arial;text-align:center;"><h2>Legend Game Center</h2><h3>${key}</h3><h1>${amount} دینار</h1></body></html>`;
+            const win = window.open("", "", "width=600,height=600");
+            win.document.write(content);
+            win.document.close();
+            win.print();
+        }
+        document.getElementById("reportType").addEventListener("change", loadReportList);
+        function switchMode(m) {
+            Object.values(intervals).forEach(clearInterval);
+            intervals = {};
+            mode = m;
+            document.getElementById('pcBtn').className = m === 'PC' ? 'switch-btn active' : 'switch-btn inactive';
+            document.getElementById('psBtn').className = m === 'PS' ? 'switch-btn active' : 'switch-btn inactive';
+            renderPlayers();
+            updateTotalIncome();
+        }
+        function format(ms) {
+            if (ms < 0) ms = 0;
+            const totalSeconds = Math.floor(ms / 1000);
+            const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const s = String(totalSeconds % 60).padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+        function updateDisplay(i, elapsed) {
+            const key = `${mode}${i}`;
+            const stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [] };
+            const gameCost = Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
+            let foodCost = 0;
+            const foodListDiv = document.getElementById(`foodList${i}`);
+            foodListDiv.innerHTML = '';
+            if (stored.foodItems && stored.foodItems.length > 0) {
+                const list = document.createElement('ul');
+                list.style.cssText = "padding-right: 0; margin: 5px 0; text-align: right; list-style-type: none;";
+                stored.foodItems.forEach((item, index) => {
+                    foodCost += item.price;
+                    const listItem = document.createElement('li');
+                    listItem.style.cssText = "display:flex; justify-content:space-between; align-items:center;";
+                    listItem.innerHTML = `<span>• ${item.name}: ${item.price} دینار</span><button class="delete-food-btn" onclick="deleteFoodFromPlayer(${i}, ${index})">❌</button>`;
+                    list.appendChild(listItem);
+                });
+                foodListDiv.appendChild(list);
+            }
+            const totalCost = gameCost + foodCost;
+            document.getElementById(`time${i}`).textContent = format(elapsed);
+            document.getElementById(`cost${i}`).textContent = `💰 ${totalCost} دینار`;
+            updateTotalIncome();
+        }
+        function updateTotalIncome() {
+            let total = 0;
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
+                if (!data) continue;
+                let elapsed = data.elapsedTime || 0;
+                if (data.isRunning) elapsed += Date.now() - data.startTime;
+                total += Math.floor((elapsed / (1000 * 60 * 60)) * pricePerHour[mode]);
+                if (data.foodItems) data.foodItems.forEach(item => total += item.price);
+            }
+            document.getElementById('totalIncome').textContent = total;
+        }
+
+        function runInterval(i) {
+            const key = `${mode}${i}`;
+            if (intervals[key]) clearInterval(intervals[key]);
+            intervals[key] = setInterval(() => {
+                const data = JSON.parse(localStorage.getItem(key));
+                if (!data || !data.isRunning) { clearInterval(intervals[key]); return; }
+                const totalElapsed = (data.elapsedTime || 0) + (Date.now() - data.startTime);
+                updateDisplay(i, totalElapsed);
+            }, 1000);
+        }
+
+        function toggleButtons(i, state) {
+            const box = document.getElementById(`playerBox${i}`);
+            const start = document.getElementById(`startBtn${i}`);
+            const pause = document.getElementById(`pauseBtn${i}`);
+            const resume = document.getElementById(`resumeBtn${i}`);
+            const reset = document.getElementById(`resetBtn${i}`);
+            start.style.display = (state === 'reset') ? 'inline-block' : 'none';
+            pause.style.display = (state === 'running') ? 'inline-block' : 'none';
+            resume.style.display = (state === 'paused') ? 'inline-block' : 'none';
+            reset.style.display = (state !== 'reset') ? 'inline-block' : 'none';
+            box.classList.remove('started', 'paused');
+            if (state === 'running') box.classList.add('started');
+            if (state === 'paused') box.classList.add('paused');
+        }
+
+        function updateCounts() {
+            let started = 0;
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const data = JSON.parse(localStorage.getItem(`${mode}${i}`));
+                if (data && (data.isRunning || (data.elapsedTime && data.elapsedTime > 0) || (data.foodItems && data.foodItems.length > 0))) {
+                     started++;
+                }
+            }
+            document.getElementById('countStarted').textContent = started;
+            document.getElementById('countNotStarted').textContent = max - started;
+        }
+        
+        function startTimer(i) {
+            const key = `${mode}${i}`;
+            let stored = JSON.parse(localStorage.getItem(key)) || {};
+            if (stored.isRunning) return;
+            const data = { startTime: Date.now(), elapsedTime: 0, isRunning: true, foodItems: stored.foodItems || [] };
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleButtons(i, 'running');
+            runInterval(i);
+            updateCounts();
+        }
+
+        function pauseTimer(i) {
+            const key = `${mode}${i}`;
+            let data = JSON.parse(localStorage.getItem(key));
+            if (!data || !data.isRunning) return;
+            data.elapsedTime += (Date.now() - data.startTime);
+            data.isRunning = false;
+            localStorage.setItem(key, JSON.stringify(data));
+            if (intervals[key]) clearInterval(intervals[key]);
+            toggleButtons(i, 'paused');
+            updateCounts();
+        }
+
+        function resumeTimer(i) {
+            const key = `${mode}${i}`;
+            let data = JSON.parse(localStorage.getItem(key));
+            if (!data || data.isRunning) return;
+            data.startTime = Date.now();
+            data.isRunning = true;
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleButtons(i, 'running');
+            runInterval(i);
+            updateCounts();
+        }
+        
+        function resetTimer(i, force = false) {
+            const key = `${mode}${i}`;
+            const stored = JSON.parse(localStorage.getItem(key));
+            if (stored && !force) {
+                let msg = `(${mode} ${i})`;
+                if(stored.foodItems && stored.foodItems.length > 0) {
+                    if (!confirm(`ئەم یاریزانە ${msg} داواکاری خواردنی هەیە، دڵنیایت؟`)) return;
+                } else if (stored.isRunning || stored.elapsedTime > 0) {
+                     if (!confirm(`دڵنیایت لە سڕینەوەی کاتی یاریزانی ${msg}؟`)) return;
+                }
+            }
+            if (intervals[key]) clearInterval(intervals[key]);
+            localStorage.removeItem(key);
+            updateDisplay(i, 0);
+            toggleButtons(i, 'reset');
+            updateCounts();
+        }
+
+        function startAll() {
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                const key = `${mode}${i}`;
+                const data = JSON.parse(localStorage.getItem(key));
+                if (!data || Object.keys(data).length === 0 || (!data.isRunning && !data.elapsedTime)) {
+                    startTimer(i);
+                } else if (data && !data.isRunning) {
+                    resumeTimer(i);
+                }
+            }
+        }
+        
+        function pauseAll() {
+            const max = mode === 'PC' ? numPC : numPS;
+            for (let i = 1; i <= max; i++) {
+                pauseTimer(i);
+            }
+        }
+
+        function resetAll() {
+            if (confirm("دڵنیایت لە سڕینەوەی هەموو کات و داواکارییەکان؟")) {
+                const max = mode === 'PC' ? numPC : numPS;
+                for (let i = 1; i <= max; i++) {
+                    resetTimer(i, true);
+                }
+            }
+        }
+
+        // Initial Load
+        switchMode('PC');
+        updateIncomeDisplay();
+        loadReportList();
+        renderFoodMenu();
+    </script>
+</body>
+</html>
