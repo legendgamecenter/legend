@@ -157,8 +157,8 @@
         // --- Key Generators ---
         function getTodayKey() { const d = new Date(); return `daily-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
         function getMonthKey() { const d = new Date(); return `monthly-${d.getFullYear()}-${d.getMonth() + 1}`; }
-        function getCafeTodayKey() { const d = new Date(); return `cafe-daily-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
-        function getCafeMonthKey() { const d = new Date(); return `cafe-monthly-${d.getFullYear()}-${d.getMonth() + 1}`; }
+        function getCafeTodayKey(date = new Date()) { return `cafe-daily-${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`; }
+        function getCafeMonthKey(date = new Date()) { return `cafe-monthly-${date.getFullYear()}-${date.getMonth() + 1}`; }
         
         // --- Food Menu Management ---
         function loadFoodMenu() { return JSON.parse(localStorage.getItem(foodMenuKey)) || []; }
@@ -278,6 +278,22 @@
             monthly += amount;
             localStorage.setItem(getCafeTodayKey(), JSON.stringify(daily));
             localStorage.setItem(getCafeMonthKey(), JSON.stringify(monthly));
+            updateCafeIncomeDisplay();
+        }
+        function subtractCafeIncome(amount, timestamp) {
+            if (amount <= 0) return;
+            const saleDate = new Date(timestamp);
+            const dailyKey = getCafeTodayKey(saleDate);
+            const monthlyKey = getCafeMonthKey(saleDate);
+            
+            let daily = JSON.parse(localStorage.getItem(dailyKey)) || 0;
+            let monthly = JSON.parse(localStorage.getItem(monthlyKey)) || 0;
+
+            daily -= amount;
+            monthly -= amount;
+
+            localStorage.setItem(dailyKey, JSON.stringify(daily < 0 ? 0 : daily));
+            localStorage.setItem(monthlyKey, JSON.stringify(monthly < 0 ? 0 : monthly));
             updateCafeIncomeDisplay();
         }
         function savePayment(i) {
@@ -719,11 +735,14 @@
                 return;
             }
 
-            if (confirm("دڵنیایت لە سڕینەوەی ئەم تۆمارەی فرۆشتن؟\nئەم کردارە پاشگەزبوونەوەی نییە.")) {
+            if (confirm(`دڵنیایت لە سڕینەوەی ئەم تۆمارەی فرۆشتن؟\nئەم کردارە وا دەکات بڕی ${saleToDelete.total} دینار لە داهات کەم بکرێتەوە.`)) {
+                // NEW: Subtract the amount from the income records
+                subtractCafeIncome(saleToDelete.total, saleToDelete.timestamp);
+
                 salesHistory.splice(saleIndex, 1);
                 localStorage.setItem(cafeSalesHistoryKey, JSON.stringify(salesHistory));
-                updateSalesFilters();
-                alert("تۆماری فرۆشتنەکە سڕایەوە.");
+                updateSalesFilters(); // This will re-render the history
+                alert("تۆماری فرۆشتنەکە سڕایەوە و بڕەکەی لە داهات کەمکرایەوە.");
             }
         }
         function renderSalesHistory() {
@@ -871,7 +890,6 @@
             }
         }
         
-        // --- UPDATED: Time Formatting Function ---
         function format(ms) {
             if (ms < 0) ms = 0;
             const totalSeconds = Math.floor(ms / 1000);
