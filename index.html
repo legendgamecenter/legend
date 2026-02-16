@@ -8,7 +8,7 @@
         .main-title { text-align: center; font-size: 48px; font-weight: bold; color: #c63636; text-shadow: 0 0 10px #000, 0 0 20px #250000; margin-bottom: 10px; }
         .switch-btn { border: none; border-radius: 8px; padding: 8px 18px; margin: 0 5px; font-weight: bold; cursor: pointer; transition: 0.3s; }
         .switch-btn.active { opacity: 1; } .switch-btn.inactive { opacity: 0.5; }
-        #players { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        #players, #tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
         .player { background: #032648; border-radius: 12px; padding: 15px; border: 6px solid rgb(8, 81, 146); text-align: center; transition: 0.3s; }
         .player.started { border: 6px solid rgb(6, 96, 6); background-color: #002005; }
         .player.paused { border: 6px solid rgb(99, 8, 8); background-color: rgb(44, 2, 2); }
@@ -36,6 +36,7 @@
         #pcBtn { background-color: #f44336; }
         #psBtn { background-color: #2196F3; }
         #cafeBtn { background-color: #9c27b0; }
+        #tableBtn { background-color: #ff9800; }
 
         /* Sales History Styles */
         .sale-item { border-right: 5px solid; padding: 10px; margin-bottom: 10px; border-radius: 5px; text-align: right; position: relative; }
@@ -57,6 +58,7 @@
     <div style="text-align:center; margin-bottom:20px;">
         <button id="pcBtn" class="switch-btn active" onclick="switchMode('PC')">PC</button>
         <button id="psBtn" class="switch-btn inactive" onclick="switchMode('PS')">PlayStation</button>
+        <button id="tableBtn" class="switch-btn inactive" onclick="switchMode('TABLE')">مێزەکان</button>
         <button id="cafeBtn" class="switch-btn inactive" onclick="switchMode('CAFE')">Café</button>
     </div>
     <div id="mainControls" style="text-align:center;margin:20px;">
@@ -66,6 +68,7 @@
     </div>
 
     <div id="players"></div>
+    <div id="tables" style="display:none;"></div>
 
     <!-- Cafe Section -->
     <div id="cafeSection" class="cafe-section" style="display:none;">
@@ -107,14 +110,19 @@
     <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
         <div style="text-align:center;">
             <h3 style="color:#eee;">--- داهاتی یارییەکان ---</h3>
-            <h2 style="color:#ffd700;">💰 کۆی گشتی قازانجی یارییەکان: <span id="totalIncome">0</span> دینار</h2>
+            <h2 style="color:#ffd700;">💰 قازانجی چاوەڕوانکراو: <span id="totalIncome">0</span> دینار</h2>
             <h3 style="color:#4CAF50;">📅 داهاتی ئەمڕۆ: <span id="dailyIncome">0</span> دینار</h3>
             <h3 style="color:#00bcd4;">📆 داهاتی ئەم مانگە: <span id="monthlyIncome">0</span> دینار</h3>
         </div>
         <div style="text-align:center;">
+            <h3 style="color:#eee;">--- داهاتی مێزەکان ---</h3>
+            <h3 style="color:#4CAF50;">📅 داهاتی ئەمڕۆ: <span id="tableDailyIncome">0</span> دینار</h3>
+            <h3 style="color:#00bcd4;">📆 داهاتی ئەم مانگە: <span id="tableMonthlyIncome">0</span> دینار</h3>
+        </div>
+        <div style="text-align:center;">
             <h3 style="color:#eee;">--- داهاتی کافێ ---</h3>
-            <h3 style="color:#4CAF50;">📅 داهاتی کافێی ئەمڕۆ: <span id="cafeDailyIncome">0</span> دینار</h3>
-            <h3 style="color:#00bcd4;">📆 داهاتی کافێی ئەم مانگە: <span id="cafeMonthlyIncome">0</span> دینار</h3>
+            <h3 style="color:#4CAF50;">📅 داهاتی ئەمڕۆ: <span id="cafeDailyIncome">0</span> دینار</h3>
+            <h3 style="color:#00bcd4;">📆 داهاتی ئەم مانگە: <span id="cafeMonthlyIncome">0</span> دینار</h3>
         </div>
     </div>
 
@@ -123,6 +131,8 @@
         <select id="reportType">
             <option value="daily">داهاتی ڕۆژانەی یاری</option>
             <option value="monthly">داهاتی مانگانەی یاری</option>
+            <option value="table-daily">داهاتی ڕۆژانەی مێزەکان</option>
+            <option value="table-monthly">داهاتی مانگانەی مێزەکان</option>
             <option value="cafe-daily">داهاتی ڕۆژانەی کافێ</option>
             <option value="cafe-monthly">داهاتی مانگانەی کافێ</option>
         </select>
@@ -145,10 +155,11 @@
     </div>
     <script>
         let mode = 'PC';
-        const numPC = 20, numPS = 14;
+        const numPC = 20, numPS = 14, numTables = 6;
         const pricePerHour = { 'PC': 3000, 'PS': 4500 };
         let intervals = {};
         const playersDiv = document.getElementById('players');
+        const tablesDiv = document.getElementById('tables');
         const foodMenuKey = 'foodMenu';
         const debtsKey = 'cafeDebts_v2';
         const cafeSalesHistoryKey = 'cafeSalesHistory';
@@ -159,7 +170,9 @@
         function getMonthKey() { const d = new Date(); return `monthly-${d.getFullYear()}-${d.getMonth() + 1}`; }
         function getCafeTodayKey(date = new Date()) { return `cafe-daily-${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`; }
         function getCafeMonthKey(date = new Date()) { return `cafe-monthly-${date.getFullYear()}-${date.getMonth() + 1}`; }
-        
+        function getTableTodayKey(date = new Date()) { return `table-daily-${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`; }
+        function getTableMonthKey(date = new Date()) { return `table-monthly-${date.getFullYear()}-${date.getMonth() + 1}`; }
+
         // --- Food Menu Management ---
         function loadFoodMenu() { return JSON.parse(localStorage.getItem(foodMenuKey)) || []; }
         function saveFoodMenu(menu) {
@@ -167,6 +180,7 @@
             renderFoodMenu();
             populateAllPlayerDropdowns();
             renderCafeMenu();
+            populateAllTableDropdowns();
         }
         function renderFoodMenu() {
             const menu = loadFoodMenu();
@@ -260,6 +274,12 @@
             document.getElementById('cafeDailyIncome').textContent = daily;
             document.getElementById('cafeMonthlyIncome').textContent = monthly;
         }
+        function updateTableIncomeDisplay() {
+            const daily = JSON.parse(localStorage.getItem(getTableTodayKey())) || 0;
+            const monthly = JSON.parse(localStorage.getItem(getTableMonthKey())) || 0;
+            document.getElementById('tableDailyIncome').textContent = daily;
+            document.getElementById('tableMonthlyIncome').textContent = monthly;
+        }
         function addIncome(amount) {
             if (amount <= 0) return;
             let daily = JSON.parse(localStorage.getItem(getTodayKey())) || 0;
@@ -295,6 +315,16 @@
             localStorage.setItem(dailyKey, JSON.stringify(daily < 0 ? 0 : daily));
             localStorage.setItem(monthlyKey, JSON.stringify(monthly < 0 ? 0 : monthly));
             updateCafeIncomeDisplay();
+        }
+        function addTableIncome(amount) {
+             if (amount <= 0) return;
+            let daily = JSON.parse(localStorage.getItem(getTableTodayKey())) || 0;
+            let monthly = JSON.parse(localStorage.getItem(getTableMonthKey())) || 0;
+            daily += amount;
+            monthly += amount;
+            localStorage.setItem(getTableTodayKey(), JSON.stringify(daily));
+            localStorage.setItem(getTableMonthKey(), JSON.stringify(monthly));
+            updateTableIncomeDisplay();
         }
         function savePayment(i) {
             const paidInput = document.getElementById(`paid${i}`);
@@ -736,12 +766,11 @@
             }
 
             if (confirm(`دڵنیایت لە سڕینەوەی ئەم تۆمارەی فرۆشتن؟\nئەم کردارە وا دەکات بڕی ${saleToDelete.total} دینار لە داهات کەم بکرێتەوە.`)) {
-                // NEW: Subtract the amount from the income records
                 subtractCafeIncome(saleToDelete.total, saleToDelete.timestamp);
 
                 salesHistory.splice(saleIndex, 1);
                 localStorage.setItem(cafeSalesHistoryKey, JSON.stringify(salesHistory));
-                updateSalesFilters(); // This will re-render the history
+                updateSalesFilters();
                 alert("تۆماری فرۆشتنەکە سڕایەوە و بڕەکەی لە داهات کەمکرایەوە.");
             }
         }
@@ -850,6 +879,171 @@
             }
             renderSalesHistory();
         }
+
+        // --- Table Section Functions ---
+        function renderTables() {
+            tablesDiv.innerHTML = '';
+            for (let i = 1; i <= numTables; i++) {
+                loadTable(i);
+            }
+            populateAllTableDropdowns();
+        }
+        function loadTable(i) {
+            const key = `TABLE${i}`;
+            const div = document.createElement('div');
+            div.className = 'player';
+            div.id = `tableBox${i}`;
+            div.innerHTML = `
+                <h4>مێزی ${i}</h4>
+                <div class="cost" id="tableCost${i}">💰 0 دینار</div>
+                <div id="tableFoodList${i}" style="text-align:right; font-size:13px; margin-bottom:8px; color: #cfcfcf;"></div>
+                <div style="margin-bottom:10px;">
+                    <select id="tableFoodSelect${i}" style="width: 55%; box-sizing: border-box;"></select>
+                    <button onclick="addFoodToTable(${i})" style="background-color: #00bcd4; width: 35%; box-sizing: border-box; vertical-align: top;">زیادکردن</button>
+                </div>
+                <hr style="border:0; border-top: 1px solid #444; margin: 10px 0;">
+                <input type="number" id="tablePaid${i}" placeholder="پارەی وەرگیراو">
+                <button onclick="saveTablePayment(${i})" style="background:#2196F3;">تۆمارکردن</button><br>
+                <button id="startTableBtn${i}" class="start-btn">دەستپێک</button>
+                <button id="stopTableBtn${i}" class="pause-btn" style="display:none;">وەستان</button>
+                <button id="resetTableBtn${i}" class="reset-btn" style="display:none;">Reset</button>
+            `;
+            tablesDiv.appendChild(div);
+
+            document.getElementById(`startTableBtn${i}`).onclick = () => startTable(i);
+            document.getElementById(`stopTableBtn${i}`).onclick = () => stopTable(i);
+            document.getElementById(`resetTableBtn${i}`).onclick = () => resetTable(i);
+
+            const stored = JSON.parse(localStorage.getItem(key));
+            updateTableDisplay(i); 
+
+            if (stored && stored.isStarted) {
+                toggleTableVisuals(i, 'started');
+            } else {
+                toggleTableVisuals(i, 'stopped');
+            }
+        }
+        function populateAllTableDropdowns() {
+            const menu = loadFoodMenu();
+            for (let i = 1; i <= numTables; i++) {
+                const select = document.getElementById(`tableFoodSelect${i}`);
+                if (select) {
+                    select.innerHTML = '<option value="">خواردن هەڵبژێرە...</option>';
+                    menu.forEach((item, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = `${item.name} (${item.price})`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        }
+        function updateTableDisplay(i) {
+            const key = `TABLE${i}`;
+            const stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [] };
+            let foodCost = 0;
+            const foodListDiv = document.getElementById(`tableFoodList${i}`);
+            foodListDiv.innerHTML = '';
+            if (stored.foodItems && stored.foodItems.length > 0) {
+                const list = document.createElement('ul');
+                list.style.cssText = "padding-right: 0; margin: 5px 0; text-align: right; list-style-type: none;";
+                stored.foodItems.forEach((item, index) => {
+                    foodCost += item.price;
+                    const listItem = document.createElement('li');
+                    listItem.style.cssText = "display:flex; justify-content:space-between; align-items:center;";
+                    listItem.innerHTML = `<span>• ${item.name}: ${item.price} دینار</span><button class="delete-food-btn" onclick="deleteFoodFromTable(${i}, ${index})">❌</button>`;
+                    list.appendChild(listItem);
+                });
+                foodListDiv.appendChild(list);
+            }
+            document.getElementById(`tableCost${i}`).textContent = `💰 ${foodCost} دینار`;
+        }
+        function addFoodToTable(i) {
+            const key = `TABLE${i}`;
+            const select = document.getElementById(`tableFoodSelect${i}`);
+            const foodIndex = select.value;
+            if (foodIndex === "") { alert("تکایە خواردنێک هەڵبژێرە."); return; }
+            const menu = loadFoodMenu();
+            const foodItem = menu[parseInt(foodIndex)];
+            let stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [], isStarted: false };
+            stored.foodItems.push({ name: foodItem.name, price: foodItem.price });
+            localStorage.setItem(key, JSON.stringify(stored));
+            updateTableDisplay(i);
+        }
+        function deleteFoodFromTable(i, foodIndex) {
+            const key = `TABLE${i}`;
+            let stored = JSON.parse(localStorage.getItem(key));
+            if (!stored || !stored.foodItems || stored.foodItems.length <= foodIndex) return;
+            stored.foodItems.splice(foodIndex, 1);
+            localStorage.setItem(key, JSON.stringify(stored));
+            updateTableDisplay(i);
+        }
+        function saveTablePayment(i) {
+            const key = `TABLE${i}`;
+            const paidInput = document.getElementById(`tablePaid${i}`);
+            let paidAmount = parseInt(paidInput.value) || 0;
+            const stored = JSON.parse(localStorage.getItem(key)) || { foodItems: [] };
+            const totalCost = stored.foodItems.reduce((sum, item) => sum + item.price, 0);
+
+            if (paidAmount <= 0) { paidAmount = totalCost; }
+            if (paidAmount <= 0) { alert("هیچ بڕێک نییە بۆ تۆمارکردن!"); return; }
+
+            addTableIncome(paidAmount);
+            localStorage.removeItem(key);
+            paidInput.value = '';
+            updateTableDisplay(i);
+            toggleTableVisuals(i, 'stopped');
+            alert("پارەکە بۆ داهاتی مێزەکان تۆمارکرا ✅");
+        }
+        function resetTable(i) {
+            if (confirm(`دڵنیایت لە سڕینەوەی داواکارییەکانی مێزی ${i}؟`)) {
+                const key = `TABLE${i}`;
+                localStorage.removeItem(key);
+                updateTableDisplay(i);
+                toggleTableVisuals(i, 'stopped');
+            }
+        }
+        function startTable(i) {
+            const key = `TABLE${i}`;
+            let data = JSON.parse(localStorage.getItem(key)) || { foodItems: [], isStarted: false };
+            data.isStarted = true;
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleTableVisuals(i, 'started');
+        }
+        function stopTable(i) {
+            const key = `TABLE${i}`;
+            let data = JSON.parse(localStorage.getItem(key));
+            if (!data) return;
+            data.isStarted = false;
+            localStorage.setItem(key, JSON.stringify(data));
+            toggleTableVisuals(i, 'stopped');
+        }
+        function toggleTableVisuals(i, state) {
+            const box = document.getElementById(`tableBox${i}`);
+            const startBtn = document.getElementById(`startTableBtn${i}`);
+            const stopBtn = document.getElementById(`stopTableBtn${i}`);
+            const resetBtn = document.getElementById(`resetTableBtn${i}`);
+            
+            box.classList.remove('started');
+
+            if (state === 'started') {
+                box.classList.add('started');
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                resetBtn.style.display = 'inline-block';
+            } else { // 'stopped'
+                startBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                
+                const key = `TABLE${i}`;
+                const data = JSON.parse(localStorage.getItem(key));
+                if (data && data.foodItems && data.foodItems.length > 0) {
+                    resetBtn.style.display = 'inline-block';
+                } else {
+                    resetBtn.style.display = 'none';
+                }
+            }
+        }
         
         // --- Main Mode Switcher ---
         function switchMode(m) {
@@ -859,30 +1053,30 @@
 
             document.getElementById('pcBtn').className = m === 'PC' ? 'switch-btn active' : 'switch-btn inactive';
             document.getElementById('psBtn').className = m === 'PS' ? 'switch-btn active' : 'switch-btn inactive';
+            document.getElementById('tableBtn').className = m === 'TABLE' ? 'switch-btn active' : 'switch-btn inactive';
             document.getElementById('cafeBtn').className = m === 'CAFE' ? 'switch-btn active' : 'switch-btn inactive';
 
             const playersDiv = document.getElementById('players');
+            const tablesDiv = document.getElementById('tables');
             const mainControlsDiv = document.getElementById('mainControls');
             const cafeSectionDiv = document.getElementById('cafeSection');
             const debtSectionDiv = document.getElementById('debtSection');
             const salesHistorySectionDiv = document.getElementById('salesHistorySection');
             const gameStatsTable = document.getElementById('gameStatsTable');
 
+            playersDiv.style.display = (m === 'PC' || m === 'PS') ? 'grid' : 'none';
+            tablesDiv.style.display = (m === 'TABLE') ? 'grid' : 'none';
+            mainControlsDiv.style.display = (m === 'PC' || m === 'PS') ? 'block' : 'none';
+            gameStatsTable.style.display = (m === 'PC' || m === 'PS') ? 'table' : 'none';
+            cafeSectionDiv.style.display = (m === 'CAFE') ? 'block' : 'none';
+            debtSectionDiv.style.display = (m === 'CAFE') ? 'block' : 'none';
+            salesHistorySectionDiv.style.display = (m === 'CAFE') ? 'block' : 'none';
+
             if (m === 'PC' || m === 'PS') {
-                playersDiv.style.display = 'grid';
-                mainControlsDiv.style.display = 'block';
-                gameStatsTable.style.display = 'table';
-                cafeSectionDiv.style.display = 'none';
-                debtSectionDiv.style.display = 'none';
-                salesHistorySectionDiv.style.display = 'none';
                 renderPlayers();
+            } else if (m === 'TABLE') {
+                renderTables();
             } else if (m === 'CAFE') {
-                playersDiv.style.display = 'none';
-                mainControlsDiv.style.display = 'none';
-                gameStatsTable.style.display = 'none';
-                cafeSectionDiv.style.display = 'block';
-                debtSectionDiv.style.display = 'block';
-                salesHistorySectionDiv.style.display = 'block';
                 renderCafeMenu();
                 renderCurrentOrder();
                 renderDebtList();
@@ -920,6 +1114,7 @@
             
             updateIncomeDisplay();
             updateCafeIncomeDisplay();
+            updateTableIncomeDisplay();
             loadReportList();
             renderFoodMenu();
             switchMode('PC'); // Start in PC mode
